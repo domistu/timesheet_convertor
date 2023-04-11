@@ -193,70 +193,58 @@ def calculate_totals(email_dic):
         total_public_holiday = 0
         total_total = 0
 
-        #print(email_dic[key])
-        # If there is only one entry for the day, computes directly, else, it will loop through the week.
-        if len(email_dic[key]) == 1:
-            formatted_data[email_dic[key][0][9]] = {email_dic[key][0][10][:8]: None, 'total': None}
+        for i in range(len(email_dic[key])):
 
-            # formatted_data[email_dic[key][0][9]][email_dic[key][0][10][:8]] = one_day_dic(email_dic[key][0])
-            formatted_data[email_dic[key][0][9]][email_dic[key][0][10][:8]] = one_day_dic(email_dic[key][0])[0]
-            formatted_data[email_dic[key][0][9]]['total'] = one_day_dic(email_dic[key][0])[1]
-            continue
+            # If there is a date with a list, it appends the next row
+            try:
+                formatted_data[email_dic[key][i][9]][email_dic[key][i][10][:8]].append(
+                    one_day_dic(email_dic[key][i], False))
+            except KeyError:
 
-        else:
-            # Multiple shifts in a day
-            for i in range(len(email_dic[key])):
-
-                # If there is a date with a list, it appends the next row
+                # If not, it first checks to see if there is a dictionary for the date
                 try:
-                    formatted_data[email_dic[key][i][9]][email_dic[key][i][10][:8]].append(
-                        one_day_dic(email_dic[key][i], False))
-                except KeyError:
+                    isinstance(formatted_data[email_dic[key][i][9]], dict)
 
-                    # If not, it first checks to see if there is a dictionary for the date
+                    # If there is a dictionary for the person
                     try:
-                        isinstance(formatted_data[email_dic[key][i][9]], dict)
-
-                        # If there is a dictionary for the person
-                        try:
-                            formatted_data[email_dic[key][i][9]][email_dic[key][i][10][:8]]
-                            formatted_data[email_dic[key][i][9]][email_dic[key][i][10][:8]].append(
-                                one_day_dic(email_dic[key][i], False))
-
-                        # Creates a list for the date
-                        except KeyError:
-                            formatted_data[email_dic[key][i][9]][email_dic[key][i][10][:8]] = []
-                            formatted_data[email_dic[key][i][9]][email_dic[key][i][10][:8]].append(
-                                one_day_dic(email_dic[key][i], False))
-
-                    # creates a dictionary with the first entry and a list for its value
-                    except KeyError:
-                        formatted_data[email_dic[key][i][9]] = {email_dic[key][i][10][:8]: []}
+                        formatted_data[email_dic[key][i][9]][email_dic[key][i][10][:8]]
                         formatted_data[email_dic[key][i][9]][email_dic[key][i][10][:8]].append(
                             one_day_dic(email_dic[key][i], False))
 
-                # Calculates the totals and keeps track in their variables
-                row_list = email_dic[key][i]
-                total_hour = int(row_list[4]) / 60
-                match row_list[6]:
+                    # Creates a list for the date
+                    except KeyError:
+                        formatted_data[email_dic[key][i][9]][email_dic[key][i][10][:8]] = []
+                        formatted_data[email_dic[key][i][9]][email_dic[key][i][10][:8]].append(
+                            one_day_dic(email_dic[key][i], False))
 
-                    case 'Paid':
-                        total_sick_paid += total_hour
-                    case 'Unpaid':
-                        total_sick_unpaid += total_hour
+                # creates a dictionary with the first entry and a list for its value
+                except KeyError:
+                    formatted_data[email_dic[key][i][9]] = {email_dic[key][i][10][:8]: []}
+                    formatted_data[email_dic[key][i][9]][email_dic[key][i][10][:8]].append(
+                        one_day_dic(email_dic[key][i], False))
 
-                # annual
-                match row_list[7]:
-                    case 'Paid':
-                        total_annual_paid += total_hour
-                    case 'Unpaid':
-                        total_annual_unpaid += total_hour
+            # Calculates the totals and keeps track in their variables
+            row_list = email_dic[key][i]
+            total_hour = int(row_list[4]) / 60
+            match row_list[6]:
 
-                # public holiday
-                if row_list[8] == "Yes":
-                    total_public_holiday += total_hour
+                case 'Paid':
+                    total_sick_paid += total_hour
+                case 'Unpaid':
+                    total_sick_unpaid += total_hour
 
-                total_total += total_hour
+            # annual
+            match row_list[7]:
+                case 'Paid':
+                    total_annual_paid += total_hour
+                case 'Unpaid':
+                    total_annual_unpaid += total_hour
+
+            # public holiday
+            if row_list[8] == "Yes":
+                total_public_holiday += total_hour
+
+            total_total += total_hour
 
         # creates a new entry in dic along with the dates called totals with a list of totals
         totals_list = [
@@ -270,8 +258,6 @@ def calculate_totals(email_dic):
         ]
 
         formatted_data[email_dic[key][i][9]]['total'] = totals_list
-
-        print(email_dic[key])
 
     return formatted_data
 
