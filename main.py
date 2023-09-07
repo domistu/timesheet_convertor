@@ -112,7 +112,7 @@ def one_day_dic(email_dic, day_flag=True):
     # email_dic contents
     # [Name-0, Start-1, Finish-2, Break-3, Total(min)-4, Project-5, Sick-6, Annual-7,
     # Public-8, email-9, start_num-10, finish_num-11]
-    proj = email_dic[5] if 0 else 'No Project'
+    proj = 'No Project' if email_dic[5] == 0 else email_dic[5]
     day_list = [
         [
             email_dic[0],
