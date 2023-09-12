@@ -6,7 +6,6 @@ import csv
 import sys
 from datetime import datetime, timedelta
 
-
 def get_date():
     """Checks the current date and subtracts 3, in case of holidays.
         :return string with last week's Monday and Friday"""
@@ -40,11 +39,11 @@ def simple_date(str_date):
 def create_file(worker):
     """Creates new csv file and adds the required formats"""
     title = ['Timesheet', '', get_date()]
-    header = ['Name', 'Start Time', 'Finish Time', 'Break', 'Total Time', 'Project', 'Sick', 'Annual', 'Public Holiday']
+    header = ['Name', 'Start Time', 'Finish Time', 'Break', 'Total Time', 'Project', 'Sick', 'Annual', 'Public Holiday', 'Use TIL', 'Shift TIL']
 
     # Total pay will be appended to this list and passed to the document.
     total_header = ['Total Sick (Paid)', 'Total Sick (Unpaid)', 'Total Annual (Paid)',
-                    'Total Annual (Unpaid)', 'Total Public Holiday', 'Total pay per hour (STD)']
+                    'Total Annual (Unpaid)', 'Total Public Holiday', 'Total pay per hour (STD)', 'Total TIL (Accrued)', 'Total TIL (Used)', 'Total TIL']
     now = datetime.now().date() - timedelta(days=3)
     monday = str(now - timedelta(days=now.weekday()))
 
@@ -73,6 +72,7 @@ def create_file(worker):
                         for k in range(len(calculated_data[i][j])):
                             test = calculated_data[i][j][k]
                             writer.writerow(calculated_data[i][j][k])
+
                     else:
                         writer.writerow(calculated_data[i][j])
                 else:
@@ -97,12 +97,12 @@ def list_to_dict(list_to_dic, reader) -> dict:
     # For every row, as long as there is a valid email with the at sign,
     # it will use that as key to create a list or append to existing list
     for row in reader:
-        if "@" in row[-3]:
+        if "@" in row[USER_EMAIL]:
             try:
-                list_to_dic[row[-3].strip('"')].append([s.strip('"') if s != '' else 0 for s in row])
+                list_to_dic[row[USER_EMAIL].strip('"')].append([s.strip('"') if s != '' else 0 for s in row])
             except KeyError:
-                list_to_dic[row[-3].strip('"')] = []
-                list_to_dic[row[-3].strip('"')].append([s.strip('"') if s != '' else 0 for s in row])
+                list_to_dic[row[USER_EMAIL].strip('"')] = []
+                list_to_dic[row[USER_EMAIL].strip('"')].append([s.strip('"') if s != '' else 0 for s in row])
 
     return list_to_dic
 
@@ -111,66 +111,84 @@ def one_day_dic(email_dic, day_flag=True):
     """Creates a dictionary for a one shift/row"""
     # email_dic contents
     # [Name-0, Start-1, Finish-2, Break-3, Total(min)-4, Project-5, Sick-6, Annual-7,
-    # Public-8, email-9, start_num-10, finish_num-11]
-    proj = 'No Project' if email_dic[5] == 0 else email_dic[5]
+    # Public-8, email-9, start_num-10, finish_num-11, 
+    # use_til-12, shift_time-13, shift_til-14, total_til-15, date_modified-16]
+
+    proj = 'No Project' if email_dic[PROJECT] == 0 else email_dic[PROJECT]
     day_list = [
         [
-            email_dic[0],
-            convert_dates(email_dic[10]),
-            convert_dates(email_dic[11]),
-            int(email_dic[3]) / 60,
-            int(email_dic[4]) / 60,
+            email_dic[USER_NAME],
+            convert_dates(email_dic[START_NUM]),
+            convert_dates(email_dic[FINISH_NUM]),
+            int(email_dic[BREAK_LENGTH]) / 60,
+            int(email_dic[SHIFT_LENGTH]) / 60,
             proj,
-            email_dic[6],
-            email_dic[7],
-            email_dic[8]
+            email_dic[SICK],
+            email_dic[ANNUAL],
+            email_dic[PUB_HOL],
+            email_dic[USE_TIL],
+            int(email_dic[SHIFT_TIL]) / 60
         ]
     ]
 
     if day_flag:
         # sick
         totals_list = []
-        match email_dic[6]:
+        match email_dic[SICK]:
 
             case 'Paid':
-                totals_list.append(int(email_dic[4]) / 60)
+                totals_list.append(int(email_dic[SHIFT_LENGTH]) / 60)
                 totals_list.append(0)
 
             case 'Unpaid':
                 totals_list.append(0)
-                totals_list.append(int(email_dic[4]) / 60)
+                totals_list.append(int(email_dic[SHIFT_LENGTH]) / 60)
 
             case _:
                 totals_list.append(0)
                 totals_list.append(0)
 
         # annual
-        match email_dic[7]:
+        match email_dic[ANNUAL]:
 
             case 'Paid':
-                totals_list.append(int(email_dic[4]) / 60)
+                totals_list.append(int(email_dic[SHIFT_LENGTH]) / 60)
                 totals_list.append(0)
 
             case 'Unpaid':
                 totals_list.append(0)
-                totals_list.append(int(email_dic[4]) / 60)
+                totals_list.append(int(email_dic[SHIFT_LENGTH]) / 60)
 
             case _:
                 totals_list.append(0)
                 totals_list.append(0)
 
         # public holiday
-        if email_dic[8] == "Yes":
-            totals_list.append(int(email_dic[4]) / 60)
+        if email_dic[PUB_HOL] == "True":
+            totals_list.append(int(email_dic[SHIFT_LENGTH]) / 60)
         else:
             totals_list.append(0)
 
         # Total hours
-        count = int(email_dic[4]) / 60
+        count = int(email_dic[SHIFT_LENGTH]) / 60
         for num in totals_list:
             count = count - num
 
         totals_list.append(count)
+
+        # Total TIL accrued
+        totals_list.append(int(email_dic[SHIFT_TIL]) / 60)
+
+        # Total TIL used
+        if email_dic[USE_TIL] == "True":
+            totals_list.append(int(email_dic[SHIFT_LENGTH]) / 60)
+        else:
+            totals_list.append(0)
+
+
+        # Total TIL
+        totals_list.append(int(email_dic[TOTAL_TIL]) / 60)
+
 
         day_list.append(totals_list)
         return day_list
@@ -184,7 +202,7 @@ def calculate_totals(email_dic):
     formatted_data = {}
 
     for key in email_dic:
-
+        
         # to create the list of totals at the end
         total_sick_paid = 0
         total_sick_unpaid = 0
@@ -192,41 +210,46 @@ def calculate_totals(email_dic):
         total_annual_unpaid = 0
         total_public_holiday = 0
         total_total = 0
+        total_til_accrued = 0
+        total_til_used = 0
+        total_til = 0
+        
+        last_modified = 0
 
         for i in range(len(email_dic[key])):
-
             # If there is a date with a list, it appends the next row
             try:
-                formatted_data[email_dic[key][i][9]][email_dic[key][i][10][:8]].append(
+                formatted_data[email_dic[key][i][USER_EMAIL]][email_dic[key][i][START_NUM][:8]].append(
                     one_day_dic(email_dic[key][i], False))
             except KeyError:
 
                 # If not, it first checks to see if there is a dictionary for the date
                 try:
-                    isinstance(formatted_data[email_dic[key][i][9]], dict)
+                    isinstance(formatted_data[email_dic[key][i][USER_EMAIL]], dict)
 
                     # If there is a dictionary for the person
                     try:
-                        formatted_data[email_dic[key][i][9]][email_dic[key][i][10][:8]]
-                        formatted_data[email_dic[key][i][9]][email_dic[key][i][10][:8]].append(
+                        formatted_data[email_dic[key][i][USER_EMAIL]][email_dic[key][i][START_NUM][:8]]
+                        formatted_data[email_dic[key][i][USER_EMAIL]][email_dic[key][i][START_NUM][:8]].append(
                             one_day_dic(email_dic[key][i], False))
 
                     # Creates a list for the date
                     except KeyError:
-                        formatted_data[email_dic[key][i][9]][email_dic[key][i][10][:8]] = []
-                        formatted_data[email_dic[key][i][9]][email_dic[key][i][10][:8]].append(
+                        formatted_data[email_dic[key][i][USER_EMAIL]][email_dic[key][i][START_NUM][:8]] = []
+                        formatted_data[email_dic[key][i][USER_EMAIL]][email_dic[key][i][START_NUM][:8]].append(
                             one_day_dic(email_dic[key][i], False))
 
                 # creates a dictionary with the first entry and a list for its value
                 except KeyError:
-                    formatted_data[email_dic[key][i][9]] = {email_dic[key][i][10][:8]: []}
-                    formatted_data[email_dic[key][i][9]][email_dic[key][i][10][:8]].append(
+                    formatted_data[email_dic[key][i][USER_EMAIL]] = {email_dic[key][i][START_NUM][:8]: []}
+                    formatted_data[email_dic[key][i][USER_EMAIL]][email_dic[key][i][START_NUM][:8]].append(
                         one_day_dic(email_dic[key][i], False))
 
             # Calculates the totals and keeps track in their variables
             row_list = email_dic[key][i]
-            total_hour = int(row_list[4]) / 60
-            match row_list[6]:
+            total_hour = int(row_list[SHIFT_LENGTH]) / 60
+            shift_til_hour = int(row_list[SHIFT_TIL]) / 60
+            match row_list[SICK]:
 
                 case 'Paid':
                     total_sick_paid += total_hour
@@ -234,18 +257,33 @@ def calculate_totals(email_dic):
                     total_sick_unpaid += total_hour
 
             # annual
-            match row_list[7]:
+            match row_list[ANNUAL]:
                 case 'Paid':
                     total_annual_paid += total_hour
                 case 'Unpaid':
                     total_annual_unpaid += total_hour
 
             # public holiday
-            if row_list[8] == "Yes":
+            if row_list[PUB_HOL] == "True":
                 total_public_holiday += total_hour
 
             total_total += total_hour
 
+            # TIL accrued
+            total_til_accrued += shift_til_hour
+
+            # TIL used
+            if row_list[USE_TIL] == "True":
+                total_til_used += total_hour
+
+            # Total TIL
+            row_datetime = datetime.strptime(email_dic[key][i][DATE_MODIFIED], '%d/%m/%Y %H:%M')
+            last_modified_datetime = datetime.strptime(email_dic[key][last_modified][DATE_MODIFIED], '%d/%m/%Y %H:%M')
+
+            if row_datetime >= last_modified_datetime:
+                last_modified = i
+                total_til = email_dic[key][i][TOTAL_TIL]
+  
         # creates a new entry in dic along with the dates called totals with a list of totals
         totals_list = [
             total_sick_paid,
@@ -254,11 +292,13 @@ def calculate_totals(email_dic):
             total_annual_unpaid,
             total_public_holiday,
             total_total - total_sick_paid - total_sick_unpaid -
-            total_annual_paid - total_annual_unpaid - total_public_holiday
+            total_annual_paid - total_annual_unpaid - total_public_holiday - total_til_used,
+            total_til_accrued,
+            total_til_used,
+            total_til
         ]
 
-        formatted_data[email_dic[key][i][9]]['total'] = totals_list
-
+        formatted_data[email_dic[key][i][USER_EMAIL]]['total'] = totals_list
     return formatted_data
 
 
@@ -284,4 +324,21 @@ def import_csv():
 
 
 if __name__ == "__main__":
+    USER_NAME = 0
+    START_DATETIME = 1
+    FINISH_DATETIME = 2
+    BREAK_LENGTH = 3
+    TOTAL_TIME = 4
+    PROJECT = 5
+    SICK = 6
+    ANNUAL = 7
+    PUB_HOL = 8
+    USER_EMAIL = 9
+    START_NUM = 10
+    FINISH_NUM = 11
+    USE_TIL = 12
+    SHIFT_LENGTH = 13
+    SHIFT_TIL = 14
+    TOTAL_TIL = 15
+    DATE_MODIFIED = 16
     create_file(import_csv())
